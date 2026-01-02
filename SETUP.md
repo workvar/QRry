@@ -8,7 +8,7 @@ Add the following to your `.env.local` file:
 # Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 CLERK_SECRET_KEY=your_clerk_secret_key
-CLERK_WEBHOOK_SECRET=your_clerk_webhook_secret
+CLERK_WEBHOOK_SECRET=your_clerk_webhook_secret  # Optional - only needed if using webhooks
 
 # Supabase (Server-side only - NOT public)
 SUPABASE_URL=your_supabase_url
@@ -29,7 +29,11 @@ GEMINI_API_KEY=your_gemini_api_key
    - This key has admin privileges and should NEVER be exposed to the client
    - Add it to `.env.local` as `SUPABASE_SERVICE_ROLE_KEY`
 
-## Clerk Webhook Setup
+## Clerk Webhook Setup (Optional)
+
+**Note:** Webhooks are now optional! Users are automatically created in the database when they first interact with the app. The webhook can still be used for syncing user updates/deletions, but it's not required.
+
+If you want to set up the webhook:
 
 1. Go to your Clerk Dashboard → Webhooks
 2. Create a new webhook endpoint pointing to: `https://your-domain.com/api/webhooks/clerk`

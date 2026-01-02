@@ -4,10 +4,15 @@ import { WebhookEvent } from '@clerk/nextjs/server';
 import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
+  // Webhook is now optional - users are created on-demand in server actions
+  // This webhook can still be used for syncing user updates/deletions
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!WEBHOOK_SECRET) {
-    throw new Error('Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env.local');
+    // Webhook is optional, so we can return early if not configured
+    return new Response('Webhook secret not configured (optional)', {
+      status: 200,
+    });
   }
 
   // Get the Svix headers for verification

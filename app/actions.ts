@@ -2,9 +2,74 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { BrandingSuggestion, QRSettings } from "../types";
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { QRCode } from '@/lib/supabase/types';
+
+/**
+ * Ensures user exists in database. Creates user if they don't exist.
+ * This removes dependency on webhooks - users are created on-demand.
+ */
+async function ensureUserExists(userId: string): Promise<{ id: string; qr_count: number; ai_suggestions_used: number }> {
+    const supabase = await createServerClient();
+    
+    // Check if user exists (including deleted users)
+    const { data: existingUser } = await supabase
+        .from('users')
+        .select('id, qr_count, ai_suggestions_used, deleted_at')
+        .eq('clerk_user_id', userId)
+        .single();
+
+    if (existingUser) {
+        // If user was deleted, restore them
+        if (existingUser.deleted_at) {
+            const { data: restoredUser } = await supabase
+                .from('users')
+                .update({
+                    deleted_at: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('clerk_user_id', userId)
+                .select('id, qr_count, ai_suggestions_used')
+                .single();
+            
+            if (restoredUser) {
+                return restoredUser;
+            }
+        } else {
+            // User exists and is active
+            return {
+                id: existingUser.id,
+                qr_count: existingUser.qr_count,
+                ai_suggestions_used: existingUser.ai_suggestions_used,
+            };
+        }
+    }
+
+    // User doesn't exist - create them
+    // Get email from Clerk
+    const clerkUser = await currentUser();
+    const email = clerkUser?.emailAddresses?.[0]?.emailAddress || clerkUser?.primaryEmailAddress?.emailAddress || '';
+
+    const { data: newUser, error } = await supabase
+        .from('users')
+        .insert({
+            clerk_user_id: userId,
+            email,
+            qr_count: 0,
+            ai_suggestions_used: 0,
+            deleted_at: null,
+        })
+        .select('id, qr_count, ai_suggestions_used')
+        .single();
+
+    if (error || !newUser) {
+        console.error('Error creating user:', error);
+        throw new Error('Failed to create user account. Please try again.');
+    }
+
+    return newUser;
+}
 
 export async function fetchLogo(url: string): Promise<string | null> {
     try {
@@ -28,21 +93,9 @@ export async function getBrandingInsights(url: string): Promise<BrandingSuggesti
         throw new Error('Please log in to use AI suggestions');
     }
 
-    // Check AI suggestions limit
-    const supabase = await createServerClient();
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('ai_suggestions_used')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
-
-    if (userError && userError.code !== 'PGRST116') {
-        console.error('Error checking user limits:', userError);
-        throw new Error('Error checking your account limits');
-    }
-
-    const aiSuggestionsUsed = userData?.ai_suggestions_used || 0;
+    // Ensure user exists in database
+    const userData = await ensureUserExists(userId);
+    const aiSuggestionsUsed = userData.ai_suggestions_used;
     if (aiSuggestionsUsed >= 2) {
         throw new Error('AI suggestions limit reached (2/2). You have used all your AI suggestions.');
     }
@@ -148,13 +201,13 @@ Return only color values in hex format.`;
 
     console.log('[Gemini API] Final Normalized Result:', result);
 
-    // Increment AI suggestions count (only for active users)
+    // Increment AI suggestions count
+    const supabase = await createServerClient();
     const newCount = aiSuggestionsUsed + 1;
     await supabase
         .from('users')
         .update({ ai_suggestions_used: newCount })
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null); // Only update active users
+        .eq('id', userData.id);
 
     return result;
 }
@@ -165,24 +218,9 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
         throw new Error('Please log in to save QR codes');
     }
 
+    // Ensure user exists in database
+    const userData = await ensureUserExists(userId);
     const supabase = await createServerClient();
-
-    // Get user ID from users table (only active users)
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, qr_count')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
-
-    if (userError) {
-        console.error('Error fetching user:', userError);
-        throw new Error('User not found. Please contact support.');
-    }
-
-    if (!userData) {
-        throw new Error('User not found. Please contact support.');
-    }
 
     if (qrId) {
         // Update existing QR
@@ -228,12 +266,11 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
             throw new Error('Failed to save QR code');
         }
 
-        // Increment QR count (only for active users)
+        // Increment QR count
         await supabase
             .from('users')
             .update({ qr_count: userData.qr_count + 1 })
-            .eq('id', userData.id)
-            .is('deleted_at', null); // Only update active users
+            .eq('id', userData.id);
 
         return data.id;
     }
@@ -245,16 +282,13 @@ export async function checkQRLimit(): Promise<{ canCreate: boolean; count: numbe
         return { canCreate: false, count: 0, limit: 4 };
     }
 
-    const supabase = await createServerClient();
-    const { data: userData } = await supabase
-        .from('users')
-        .select('qr_count')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
-
-    const count = userData?.qr_count || 0;
-    return { canCreate: count < 4, count, limit: 4 };
+    try {
+        const userData = await ensureUserExists(userId);
+        return { canCreate: userData.qr_count < 4, count: userData.qr_count, limit: 4 };
+    } catch (error) {
+        console.error('Error checking QR limit:', error);
+        return { canCreate: false, count: 0, limit: 4 };
+    }
 }
 
 export async function getUserData(): Promise<{ qr_count: number; ai_suggestions_used: number } | null> {
@@ -263,20 +297,16 @@ export async function getUserData(): Promise<{ qr_count: number; ai_suggestions_
         return null;
     }
 
-    const supabase = await createServerClient();
-    const { data, error } = await supabase
-        .from('users')
-        .select('qr_count, ai_suggestions_used')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
-
-    if (error && error.code !== 'PGRST116') {
+    try {
+        const userData = await ensureUserExists(userId);
+        return {
+            qr_count: userData.qr_count,
+            ai_suggestions_used: userData.ai_suggestions_used,
+        };
+    } catch (error) {
         console.error('Error loading user data:', error);
         return null;
     }
-
-    return data || null;
 }
 
 export async function getUserQRCodes(): Promise<QRCode[]> {
@@ -285,33 +315,26 @@ export async function getUserQRCodes(): Promise<QRCode[]> {
         return [];
     }
 
-    const supabase = await createServerClient();
-    
-    // First get user ID from users table (only active users)
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
+    try {
+        const userData = await ensureUserExists(userId);
+        const supabase = await createServerClient();
 
-    if (userError || !userData) {
-        console.error('Error fetching user:', userError);
-        return [];
-    }
+        const { data, error } = await supabase
+            .from('qr_codes')
+            .select('*')
+            .eq('user_id', userData.id)
+            .order('created_at', { ascending: false });
 
-    const { data, error } = await supabase
-        .from('qr_codes')
-        .select('*')
-        .eq('user_id', userData.id)
-        .order('created_at', { ascending: false });
+        if (error) {
+            console.error('Error loading QR codes:', error);
+            return [];
+        }
 
-    if (error) {
+        return data || [];
+    } catch (error) {
         console.error('Error loading QR codes:', error);
         return [];
     }
-
-    return data || [];
 }
 
 export async function deleteQRCode(qrId: string): Promise<{ success: boolean; error?: string }> {
@@ -320,52 +343,45 @@ export async function deleteQRCode(qrId: string): Promise<{ success: boolean; er
         return { success: false, error: 'Not authenticated' };
     }
 
-    const supabase = await createServerClient();
+    try {
+        const userData = await ensureUserExists(userId);
+        const supabase = await createServerClient();
 
-    // Get user ID from users table (only active users)
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, qr_count')
-        .eq('clerk_user_id', userId)
-        .is('deleted_at', null) // Only get active users
-        .single();
+        // Verify QR code belongs to user
+        const { data: qrData, error: qrError } = await supabase
+            .from('qr_codes')
+            .select('id')
+            .eq('id', qrId)
+            .eq('user_id', userData.id)
+            .single();
 
-    if (userError || !userData) {
-        return { success: false, error: 'User not found' };
-    }
+        if (qrError || !qrData) {
+            return { success: false, error: 'QR code not found or access denied' };
+        }
 
-    // Verify QR code belongs to user
-    const { data: qrData, error: qrError } = await supabase
-        .from('qr_codes')
-        .select('id')
-        .eq('id', qrId)
-        .eq('user_id', userData.id)
-        .single();
+        // Delete QR code
+        const { error: deleteError } = await supabase
+            .from('qr_codes')
+            .delete()
+            .eq('id', qrId)
+            .eq('user_id', userData.id);
 
-    if (qrError || !qrData) {
-        return { success: false, error: 'QR code not found or access denied' };
-    }
+        if (deleteError) {
+            console.error('Error deleting QR code:', deleteError);
+            return { success: false, error: 'Failed to delete QR code' };
+        }
 
-    // Delete QR code
-    const { error: deleteError } = await supabase
-        .from('qr_codes')
-        .delete()
-        .eq('id', qrId)
-        .eq('user_id', userData.id);
+        // Update user QR count
+        const newCount = Math.max(0, userData.qr_count - 1);
+        await supabase
+            .from('users')
+            .update({ qr_count: newCount })
+            .eq('id', userData.id);
 
-    if (deleteError) {
-        console.error('Error deleting QR code:', deleteError);
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting QR code:', error);
         return { success: false, error: 'Failed to delete QR code' };
     }
-
-    // Update user QR count (only for active users)
-    const newCount = Math.max(0, userData.qr_count - 1);
-    await supabase
-        .from('users')
-        .update({ qr_count: newCount })
-        .eq('id', userData.id)
-        .is('deleted_at', null); // Only update active users
-
-    return { success: true };
 }
 
