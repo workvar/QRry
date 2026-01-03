@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { QRSettings } from '../types';
 import { FEATURE_FLAGS } from '../config';
 import { ArrowDownTrayIcon, ChevronDownIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { getUserData } from '@/app/actions';
 
 const SCRIPT_URL = 'https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js';
 
@@ -20,7 +21,27 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ settings, showDownload = fals
     const [libLoaded, setLibLoaded] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isAILoading, setIsAILoading] = useState(false);
+    const [aiRemaining, setAiRemaining] = useState<number | null>(null);
     const isDark = settings.theme === 'dark';
+
+    // Load AI remaining count when on design step
+    useEffect(() => {
+        if (currentStepIndex === 2 && onUpdate && settings.url) {
+            // Simple URL validation check
+            const urlValid = settings.url.trim().length > 0 && 
+                           settings.url.trim().match(/^https?:\/\//i);
+            
+            if (urlValid) {
+                getUserData().then(data => {
+                    if (data) {
+                        setAiRemaining(Math.max(0, 2 - data.ai_suggestions_used));
+                    }
+                }).catch(() => {
+                    setAiRemaining(null);
+                });
+            }
+        }
+    }, [currentStepIndex, settings.url, onUpdate]);
 
     useEffect(() => {
         // Check if script is already loaded
@@ -303,10 +324,18 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ settings, showDownload = fals
 
             console.log('[AI] Applying updates:', updates);
             onUpdate(updates);
+            
+            // Update remaining count after successful AI suggestion
+            const updatedData = await getUserData();
+            if (updatedData) {
+                setAiRemaining(Math.max(0, 2 - updatedData.ai_suggestions_used));
+            }
         } catch (error: any) {
             console.error('[AI] Error:', error);
             if (error.message && error.message.includes('limit reached')) {
                 alert(error.message);
+                // Update count to show 0 remaining
+                setAiRemaining(0);
             } else if (error.message && error.message.includes('not authenticated')) {
                 alert('Please log in to use AI suggestions');
             }
@@ -450,29 +479,40 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ settings, showDownload = fals
 
                     {/* AI Suggestion Button - only show on Design step */}
                     {showQRCode && onUpdate && settings.url && isValidUrl(settings.url) && (
-                        <button
-                            onClick={handleAISuggestion}
-                            disabled={isAILoading}
-                            className={`w-full flex items-center justify-center gap-2 py-4 rounded-full text-sm font-semibold transition-all ${isAILoading 
-                                ? 'opacity-50 cursor-not-allowed' 
-                                : 'hover:scale-[1.02]'
-                            } ${isDark 
-                                ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/30' 
-                                : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'
-                            }`}
-                        >
-                            {isAILoading ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                    <span>Analyzing...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <SparklesIcon className="w-4 h-4" />
-                                    <span>AI Design Suggestion</span>
-                                </>
+                        <div className="space-y-2">
+                            <button
+                                onClick={handleAISuggestion}
+                                disabled={isAILoading || (aiRemaining !== null && aiRemaining === 0)}
+                                className={`w-full flex items-center justify-center gap-2 py-4 rounded-full text-sm font-semibold transition-all ${isAILoading || (aiRemaining !== null && aiRemaining === 0)
+                                    ? 'opacity-50 cursor-not-allowed' 
+                                    : 'hover:scale-[1.02]'
+                                } ${isDark 
+                                    ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/30' 
+                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'
+                                }`}
+                            >
+                                {isAILoading ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        <span>Analyzing...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <SparklesIcon className="w-4 h-4" />
+                                        <span>AI Design Suggestion</span>
+                                    </>
+                                )}
+                            </button>
+                            {aiRemaining !== null && (
+                                <p className={`text-center text-xs ${isDark ? 'text-white/40' : 'text-black/40'}`}>
+                                    {aiRemaining > 0 ? (
+                                        <span>{aiRemaining} suggestion{aiRemaining !== 1 ? 's' : ''} remaining</span>
+                                    ) : (
+                                        <span className={isDark ? 'text-orange-400' : 'text-orange-600'}>No AI suggestions remaining</span>
+                                    )}
+                                </p>
                             )}
-                        </button>
+                        </div>
                     )}
                 </div>
             )}

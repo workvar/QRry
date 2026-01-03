@@ -42,6 +42,7 @@ export interface Database {
           settings: any; // JSONB - QRSettings
           created_at: string;
           updated_at: string;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -51,6 +52,7 @@ export interface Database {
           settings: any;
           created_at?: string;
           updated_at?: string;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -60,6 +62,7 @@ export interface Database {
           settings?: any;
           created_at?: string;
           updated_at?: string;
+          deleted_at?: string | null;
         };
       };
     };
@@ -74,6 +77,7 @@ export interface QRCode {
   settings: any;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface User {

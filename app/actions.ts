@@ -244,8 +244,27 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
 
         return data.id;
     } else {
-        // Check QR limit
-        if (userData.qr_count >= 4) {
+        // Check QR limit - count only active (non-deleted) QR codes
+        // Try to count active QRs, fallback to total count if deleted_at column doesn't exist
+        let activeCount: number | null = null;
+        let countResult = await supabase
+            .from('qr_codes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userData.id)
+            .is('deleted_at', null);
+        
+        if (countResult.error && countResult.error.message?.includes('deleted_at')) {
+            // Column doesn't exist, count all QRs
+            const retry = await supabase
+                .from('qr_codes')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userData.id);
+            activeCount = retry.count;
+        } else {
+            activeCount = countResult.count;
+        }
+
+        if ((activeCount || 0) >= 4) {
             throw new Error('QR code limit reached (4/4). Please delete an existing QR code to create a new one.');
         }
 
@@ -266,7 +285,7 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
             throw new Error('Failed to save QR code');
         }
 
-        // Increment QR count
+        // Increment QR count (for display purposes, even if some are soft-deleted)
         await supabase
             .from('users')
             .update({ qr_count: userData.qr_count + 1 })
@@ -284,7 +303,31 @@ export async function checkQRLimit(): Promise<{ canCreate: boolean; count: numbe
 
     try {
         const userData = await ensureUserExists(userId);
-        return { canCreate: userData.qr_count < 4, count: userData.qr_count, limit: 4 };
+        const supabase = await createServerClient();
+        
+        // Count only active (non-deleted) QR codes for limit check
+        // Try to count active QRs, fallback to total count if deleted_at column doesn't exist
+        let activeCount: number | null = null;
+        let countResult = await supabase
+            .from('qr_codes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userData.id)
+            .is('deleted_at', null);
+        
+        if (countResult.error && countResult.error.message?.includes('deleted_at')) {
+            // Column doesn't exist, count all QRs
+            const retry = await supabase
+                .from('qr_codes')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userData.id);
+            activeCount = retry.count;
+        } else {
+            activeCount = countResult.count;
+        }
+        
+        const actualCount = activeCount || 0;
+        // Return stored count for display, but check against active count
+        return { canCreate: actualCount < 4, count: userData.qr_count, limit: 4 };
     } catch (error) {
         console.error('Error checking QR limit:', error);
         return { canCreate: false, count: 0, limit: 4 };
@@ -319,11 +362,24 @@ export async function getUserQRCodes(): Promise<QRCode[]> {
         const userData = await ensureUserExists(userId);
         const supabase = await createServerClient();
 
-        const { data, error } = await supabase
+        // Try to filter by deleted_at, fallback if column doesn't exist
+        let { data, error } = await supabase
             .from('qr_codes')
             .select('*')
             .eq('user_id', userData.id)
+            .is('deleted_at', null)
             .order('created_at', { ascending: false });
+        
+        // If error is about missing deleted_at column, retry without the filter
+        if (error && error.message?.includes('deleted_at')) {
+            const retry = await supabase
+                .from('qr_codes')
+                .select('*')
+                .eq('user_id', userData.id)
+                .order('created_at', { ascending: false });
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) {
             console.error('Error loading QR codes:', error);
@@ -359,24 +415,34 @@ export async function deleteQRCode(qrId: string): Promise<{ success: boolean; er
             return { success: false, error: 'QR code not found or access denied' };
         }
 
-        // Delete QR code
-        const { error: deleteError } = await supabase
+        // Soft delete QR code (don't reduce count)
+        // Try soft delete first, fallback to hard delete if column doesn't exist
+        let deleteResult = await supabase
             .from('qr_codes')
-            .delete()
+            .update({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
             .eq('id', qrId)
             .eq('user_id', userData.id);
+        
+        // If deleted_at column doesn't exist, do hard delete
+        if (deleteResult.error && deleteResult.error.message?.includes('deleted_at')) {
+            deleteResult = await supabase
+                .from('qr_codes')
+                .delete()
+                .eq('id', qrId)
+                .eq('user_id', userData.id);
+        }
+        
+        const deleteError = deleteResult.error;
 
         if (deleteError) {
             console.error('Error deleting QR code:', deleteError);
             return { success: false, error: 'Failed to delete QR code' };
         }
 
-        // Update user QR count
-        const newCount = Math.max(0, userData.qr_count - 1);
-        await supabase
-            .from('users')
-            .update({ qr_count: newCount })
-            .eq('id', userData.id);
+        // Don't update QR count - soft delete preserves the count
 
         return { success: true };
     } catch (error) {

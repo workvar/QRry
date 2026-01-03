@@ -23,7 +23,10 @@ GEMINI_API_KEY=your_gemini_api_key
 1. Create a new Supabase project at https://supabase.com
 2. Go to SQL Editor in your Supabase dashboard
 3. Run the SQL script from `supabase-schema.sql` to create the necessary tables and policies
-4. Get your Service Role Key:
+4. **If you get errors about missing `deleted_at` column**, run the migration:
+   - Run `migration-add-deleted-at.sql` in your Supabase SQL Editor
+   - This adds the `deleted_at` column for soft delete functionality
+5. Get your Service Role Key:
    - Go to Project Settings → API
    - Copy the `service_role` key (NOT the anon key)
    - This key has admin privileges and should NEVER be exposed to the client

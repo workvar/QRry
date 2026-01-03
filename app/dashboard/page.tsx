@@ -1,26 +1,43 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { QRCode } from '@/lib/supabase/types';
 import { getUserData, getUserQRCodes, deleteQRCode } from '@/app/actions';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { updateSettings } from '@/store/qrSettingsSlice';
 import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
   QrCodeIcon,
   ExclamationTriangleIcon,
+  SunIcon,
+  MoonIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { SignedIn, UserButton } from '@clerk/nextjs';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+
+type SortField = 'name' | 'url' | 'created_at';
+type SortDirection = 'asc' | 'desc';
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const settings = useAppSelector((state: any) => state.qrSettings);
+  const dispatch = useAppDispatch();
+  const isDark = settings.theme === 'dark';
+  
   const [qrCodes, setQrCodes] = useState<QRCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<{ qr_count: number; ai_suggestions_used: number } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   useEffect(() => {
     if (isLoaded && user) {
@@ -65,12 +82,8 @@ export default function DashboardPage() {
       if (!result.success) {
         alert(result.error || 'Failed to delete QR code');
       } else {
+        // Remove from UI (soft delete - count stays the same)
         setQrCodes(qrCodes.filter(qr => qr.id !== id));
-        // Reload user data to get updated count
-        const updatedData = await getUserData();
-        if (updatedData) {
-          setUserData(updatedData);
-        }
       }
     } catch (error) {
       console.error('Error deleting QR code:', error);
@@ -81,7 +94,6 @@ export default function DashboardPage() {
   };
 
   const handleEdit = (qr: QRCode) => {
-    // Store QR settings in sessionStorage and navigate to create flow
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('editingQR', JSON.stringify({
         id: qr.id,
@@ -92,38 +104,127 @@ export default function DashboardPage() {
     router.push('/create/content');
   };
 
+  const toggleTheme = () => {
+    dispatch(updateSettings({ theme: isDark ? 'light' : 'dark' }));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedQRCodes = useMemo(() => {
+    const sorted = [...qrCodes].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'url':
+          aValue = a.url.toLowerCase();
+          bValue = b.url.toLowerCase();
+          break;
+        case 'created_at':
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [qrCodes, sortField, sortDirection]);
+
   const canCreateNew = userData ? userData.qr_count < 4 : true;
   const remainingQRs = userData ? Math.max(0, 4 - userData.qr_count) : 4;
   const remainingAISuggestions = userData ? Math.max(0, 2 - userData.ai_suggestions_used) : 2;
 
+  // Pie chart data for QR codes
+  const qrChartData = [
+    { name: 'Used', value: userData?.qr_count || 0, color: isDark ? '#3b82f6' : '#2563eb' },
+    { name: 'Remaining', value: remainingQRs, color: isDark ? '#1e293b' : '#e2e8f0' },
+  ];
+
+  // Pie chart data for AI suggestions
+  const aiChartData = [
+    { name: 'Used', value: userData?.ai_suggestions_used || 0, color: isDark ? '#8b5cf6' : '#7c3aed' },
+    { name: 'Remaining', value: remainingAISuggestions, color: isDark ? '#1e293b' : '#e2e8f0' },
+  ];
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpIcon className="w-4 h-4 opacity-30" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUpIcon className="w-4 h-4" />
+      : <ArrowDownIcon className="w-4 h-4" />;
+  };
+
   if (!isLoaded || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-black' : 'bg-[#F5F5F7]'}`}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] dark:bg-[#1a1a1a]">
-      <div className="max-w-[1400px] mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 ease-in-out ${isDark ? 'bg-black text-white' : 'bg-[#F5F5F7] text-[#1D1D1F]'}`}>
+      {/* Header */}
+      <header className={`h-16 border-b sticky top-0 z-50 flex items-center backdrop-blur-md transition-colors ${isDark ? 'border-white/10 bg-black/70' : 'border-black/5 bg-white/70'}`}>
+        <div className="max-w-[1200px] w-full mx-auto px-6 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-4 cursor-pointer">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-black">N</span>
+            </div>
+            <span className="text-sm font-bold tracking-tight">NovaQR Studio</span>
+          </Link>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleTheme}
+              className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+            >
+              {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+            </button>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col max-w-[1200px] w-full mx-auto px-6 py-12 lg:py-16">
+        {/* Page Header */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-4xl font-semibold text-[#201f1e] dark:text-[#ffffff] mb-2">
+              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-3">
                 My QR Codes
               </h1>
-              <p className="text-lg text-[#605e5c] dark:text-[#c8c6c4]">
+              <p className={`text-base ${isDark ? 'text-white/60' : 'text-[#1D1D1F]/60'}`}>
                 Manage and create your QR codes
               </p>
             </div>
             <Link
               href="/create/content"
-              className={`px-6 py-3 rounded-md font-semibold text-base transition-all flex items-center gap-2 ${
+              className={`px-6 py-3 rounded-full font-bold text-sm transition-all flex items-center gap-2 shadow-xl ${
                 canCreateNew
-                  ? 'bg-[#0078d4] text-white hover:bg-[#106ebe] active:bg-[#005a9e] shadow-md hover:shadow-lg'
-                  : 'bg-[#c8c6c4] text-[#605e5c] cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
+                  : 'bg-zinc-300 text-zinc-500 cursor-not-allowed opacity-50'
               }`}
             >
               <PlusIcon className="w-5 h-5" />
@@ -131,114 +232,252 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Limits Display */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className={`p-4 rounded-lg border ${
+          {/* Pie Charts for Usage */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {/* QR Codes Chart */}
+            <div className={`p-6 rounded-[2rem] border transition-all ${
               canCreateNew
-                ? 'bg-[#deecf9] dark:bg-[#0078d4]/10 border-[#0078d4]/20'
-                : 'bg-[#fef6e6] dark:bg-[#ffaa44]/10 border-[#ffaa44]/20'
+                ? isDark 
+                  ? 'border-white/10 bg-white/5' 
+                  : 'border-black/5 bg-white'
+                : isDark
+                  ? 'border-orange-500/30 bg-orange-500/10'
+                  : 'border-orange-500/30 bg-orange-50'
             }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#605e5c] dark:text-[#c8c6c4] mb-1">
-                    QR Codes Created
+              <div className="mb-4">
+                <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-white/40' : 'text-black/40'}`}>
+                  QR Codes Usage
+                </p>
+                <p className="text-3xl font-bold mb-1">
+                  {userData?.qr_count || 0} / 4
+                </p>
+                {canCreateNew ? (
+                  <p className={`text-sm ${isDark ? 'text-white/60' : 'text-black/60'}`}>
+                    {remainingQRs} QR code{remainingQRs !== 1 ? 's' : ''} remaining
                   </p>
-                  <p className="text-2xl font-semibold text-[#201f1e] dark:text-[#ffffff]">
-                    {userData?.qr_count || 0} / 4
+                ) : (
+                  <p className={`text-sm ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+                    Limit reached
                   </p>
-                </div>
-                {!canCreateNew && (
-                  <ExclamationTriangleIcon className="w-6 h-6 text-[#ffaa44]" />
                 )}
               </div>
-              {canCreateNew && (
-                <p className="text-sm text-[#605e5c] dark:text-[#c8c6c4] mt-2">
-                  {remainingQRs} QR code{remainingQRs !== 1 ? 's' : ''} remaining
-                </p>
-              )}
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={qrChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={60}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {qrChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '12px',
+                        color: isDark ? '#ffffff' : '#000000',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="p-4 rounded-lg border bg-[#deecf9] dark:bg-[#0078d4]/10 border-[#0078d4]/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#605e5c] dark:text-[#c8c6c4] mb-1">
-                    AI Suggestions Used
-                  </p>
-                  <p className="text-2xl font-semibold text-[#201f1e] dark:text-[#ffffff]">
-                    {userData?.ai_suggestions_used || 0} / 2
-                  </p>
-                </div>
+            {/* AI Suggestions Chart */}
+            <div className={`p-6 rounded-[2rem] border transition-all ${
+              isDark 
+                ? 'border-white/10 bg-white/5' 
+                : 'border-black/5 bg-white'
+            }`}>
+              <div className="mb-4">
+                <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-white/40' : 'text-black/40'}`}>
+                  AI Suggestions Usage
+                </p>
+                <p className="text-3xl font-bold mb-1">
+                  {userData?.ai_suggestions_used || 0} / 2
+                </p>
+                <p className={`text-sm ${isDark ? 'text-white/60' : 'text-black/60'}`}>
+                  {remainingAISuggestions} suggestion{remainingAISuggestions !== 1 ? 's' : ''} remaining
+                </p>
               </div>
-              <p className="text-sm text-[#605e5c] dark:text-[#c8c6c4] mt-2">
-                {remainingAISuggestions} suggestion{remainingAISuggestions !== 1 ? 's' : ''} remaining
-              </p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={aiChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={60}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {aiChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '12px',
+                        color: isDark ? '#ffffff' : '#000000',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* QR Codes Grid */}
+        {/* QR Codes Table */}
         {qrCodes.length === 0 ? (
           <div className="text-center py-20">
-            <QrCodeIcon className="w-16 h-16 mx-auto text-[#c8c6c4] dark:text-[#605e5c] mb-4" />
-            <h3 className="text-xl font-semibold text-[#201f1e] dark:text-[#ffffff] mb-2">
+            <div className={`w-24 h-24 mx-auto mb-6 rounded-[2rem] flex items-center justify-center ${
+              isDark ? 'bg-white/5' : 'bg-black/5'
+            }`}>
+              <QrCodeIcon className={`w-12 h-12 ${isDark ? 'text-white/30' : 'text-black/30'}`} />
+            </div>
+            <h3 className="text-2xl font-bold mb-3">
               No QR codes yet
             </h3>
-            <p className="text-[#605e5c] dark:text-[#c8c6c4] mb-6">
+            <p className={`text-base mb-8 ${isDark ? 'text-white/60' : 'text-black/60'}`}>
               Create your first QR code to get started
             </p>
             <Link
               href="/create/content"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#0078d4] text-white rounded-md font-semibold hover:bg-[#106ebe] transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-bold text-sm hover:bg-blue-500 transition-all shadow-xl shadow-blue-500/20"
             >
               <PlusIcon className="w-5 h-5" />
               Create Your First QR Code
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {qrCodes.map((qr) => (
-              <div
-                key={qr.id}
-                className="bg-white dark:bg-[#252423] rounded-lg border border-[#edebe9] dark:border-[#3a3a3a] p-6 hover:shadow-lg transition-shadow"
-              >
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-[#201f1e] dark:text-[#ffffff] mb-2">
-                    {qr.name}
-                  </h3>
-                  <p className="text-sm text-[#605e5c] dark:text-[#c8c6c4] truncate">
-                    {qr.url}
-                  </p>
-                  <p className="text-xs text-[#8a8886] dark:text-[#8a8886] mt-2">
-                    Created {new Date(qr.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEdit(qr)}
-                    className="flex-1 px-4 py-2 bg-[#0078d4] text-white rounded-md font-medium text-sm hover:bg-[#106ebe] transition-colors flex items-center justify-center gap-2"
-                  >
-                    <PencilIcon className="w-4 h-4" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(qr.id)}
-                    disabled={deletingId === qr.id}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {deletingId === qr.id ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <TrashIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className={`rounded-[2rem] border overflow-hidden ${
+            isDark 
+              ? 'border-white/10 bg-white/5' 
+              : 'border-black/5 bg-white'
+          }`}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b ${isDark ? 'border-white/10' : 'border-black/5'}`}>
+                    <th 
+                      className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider cursor-pointer hover:opacity-70 transition-opacity ${
+                        isDark ? 'text-white/60' : 'text-black/60'
+                      }`}
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Name
+                        <SortIcon field="name" />
+                      </div>
+                    </th>
+                    <th 
+                      className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider cursor-pointer hover:opacity-70 transition-opacity ${
+                        isDark ? 'text-white/60' : 'text-black/60'
+                      }`}
+                      onClick={() => handleSort('url')}
+                    >
+                      <div className="flex items-center gap-2">
+                        URL
+                        <SortIcon field="url" />
+                      </div>
+                    </th>
+                    <th 
+                      className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider cursor-pointer hover:opacity-70 transition-opacity ${
+                        isDark ? 'text-white/60' : 'text-black/60'
+                      }`}
+                      onClick={() => handleSort('created_at')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Created
+                        <SortIcon field="created_at" />
+                      </div>
+                    </th>
+                    <th className={`px-6 py-4 text-right text-xs font-bold uppercase tracking-wider ${
+                      isDark ? 'text-white/60' : 'text-black/60'
+                    }`}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedQRCodes.map((qr, index) => (
+                    <tr 
+                      key={qr.id}
+                      className={`border-b transition-colors ${
+                        isDark 
+                          ? 'border-white/5 hover:bg-white/5' 
+                          : 'border-black/5 hover:bg-black/5'
+                      } ${index === sortedQRCodes.length - 1 ? 'border-b-0' : ''}`}
+                    >
+                      <td className={`px-6 py-4 font-semibold ${
+                        isDark ? 'text-white' : 'text-black'
+                      }`}>
+                        {qr.name}
+                      </td>
+                      <td className={`px-6 py-4 ${
+                        isDark ? 'text-white/60' : 'text-black/60'
+                      }`}>
+                        <div className="max-w-md truncate" title={qr.url}>
+                          {qr.url}
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${
+                        isDark ? 'text-white/60' : 'text-black/60'
+                      }`}>
+                        {new Date(qr.created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEdit(qr)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-full font-bold text-xs hover:bg-blue-500 transition-all flex items-center gap-2"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(qr.id)}
+                            disabled={deletingId === qr.id}
+                            className="px-4 py-2 bg-red-600 text-white rounded-full font-bold text-xs hover:bg-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {deletingId === qr.id ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <TrashIcon className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="py-12 px-6 border-t border-current border-opacity-5 text-center">
+        <p className={`text-[11px] font-bold uppercase tracking-[0.2em] ${isDark ? 'opacity-30' : 'opacity-30'}`}>
+          © 2025 NovaQR Studio • Professional Edition
+        </p>
+      </footer>
     </div>
   );
 }
-

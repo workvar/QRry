@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS qr_codes (
   url TEXT NOT NULL,
   settings JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ NULL -- Soft delete: marks QR as deleted without removing data
 );
 
 -- Indexes for better query performance
@@ -32,6 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_user_id);
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NULL; -- Partial index for active users
 CREATE INDEX IF NOT EXISTS idx_qr_codes_user_id ON qr_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_qr_codes_created_at ON qr_codes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_deleted_at ON qr_codes(deleted_at) WHERE deleted_at IS NULL; -- Partial index for active QR codes
 
 -- Row Level Security (RLS) Policies
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
