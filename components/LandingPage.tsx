@@ -109,7 +109,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, isDark, toggleTheme 
                         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
                             <span className="text-white font-black text-lg">N</span>
                         </div>
-                        <span className="text-lg font-bold tracking-tight">NovaQR Studio</span>
+                        <span className="text-lg font-bold tracking-tight">QRry Studio</span>
                     </div>
                     <div className="flex items-center gap-4">
                         <Link
@@ -497,7 +497,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, isDark, toggleTheme 
                         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
                             <span className="text-white font-black text-lg">N</span>
                         </div>
-                        <span className="text-lg font-bold">NovaQR Studio</span>
+                        <span className="text-lg font-bold">QRry Studio</span>
                     </div>
                     <div className="flex gap-8">
                         {['Pricing', 'Documentation', 'Privacy', 'Terms'].map((link) => (
@@ -516,7 +516,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, isDark, toggleTheme 
                 <div className={`text-center mt-8 text-sm ${
                     isDark ? 'text-white/40' : 'text-black/40'
                 }`}>
-                    © 2025 NovaQR Studio. All rights reserved.
+                    © {new Date().getFullYear()} Workvar Pvt. Ltd.
                 </div>
             </footer>
 

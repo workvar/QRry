@@ -1,4 +1,4 @@
--- Supabase Database Schema for NovaQR Studio
+-- Supabase Database Schema for QRry Studio
 -- 
 -- IMPORTANT: This application uses the Supabase Service Role Key server-side only.
 -- The service role key bypasses RLS, so all security checks are handled in server actions.

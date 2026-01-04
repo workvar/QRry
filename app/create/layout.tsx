@@ -147,7 +147,7 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
                         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                             <span className="text-white font-black">N</span>
                         </div>
-                        <span className="text-sm font-bold tracking-tight">NovaQR Studio</span>
+                        <span className="text-sm font-bold tracking-tight">QRry Studio</span>
                     </Link>
 
                     <div className="flex items-center gap-4">
@@ -265,7 +265,7 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
             </main>
 
             <footer className="py-12 px-6 border-t border-current border-opacity-5 text-center">
-                <p className="opacity-30 text-[11px] font-bold uppercase tracking-[0.2em]">© 2025 NovaQR Studio • Professional Edition</p>
+                <p className="opacity-30 text-[11px] font-bold uppercase tracking-[0.2em]">© {new Date().getFullYear()} Workvar Pvt. Ltd.</p>
             </footer>
         </div>
     );

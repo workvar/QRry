@@ -5,7 +5,6 @@ import { BrandingSuggestion, QRSettings } from "../types";
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { QRCode } from '@/lib/supabase/types';
-import { headers } from 'next/headers';
 
 /**
  * Ensures user exists in database. Creates user if they don't exist.
@@ -214,6 +213,22 @@ Return only color values in hex format.`;
 }
 
 /**
+ * Gets the domain from environment variables
+ */
+function getDomain(): string {
+    let domain = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_DOMAIN;
+    
+    if (domain) {
+        // Remove protocol if present
+        domain = domain.replace(/^https?:\/\//, '');
+        return domain;
+    }
+    
+    // Fallback to localhost for development
+    return 'localhost:3000';
+}
+
+/**
  * Generates a unique identifier for dynamic QR codes
  */
 function generateUniqueId(): string {
@@ -314,27 +329,7 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
 
             if (existingDynamic) {
                 // Keep the scan URL for the QR code itself
-                // Get the domain from environment or headers
-                let domain = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_DOMAIN;
-                
-                if (!domain) {
-                    try {
-                        const headersList = await headers();
-                        const host = headersList.get('host');
-                        if (host) {
-                            domain = host;
-                        }
-                    } catch (e) {
-                        // Headers not available
-                    }
-                }
-                
-                if (domain) {
-                    domain = domain.replace(/^https?:\/\//, '');
-                } else {
-                    domain = 'localhost:3000';
-                }
-                
+                const domain = getDomain();
                 const protocol = domain.includes('localhost') ? 'http' : 'https';
                 finalUrl = `${protocol}://${domain}/dynamic/scan/${existingDynamic.unique_id}`;
             }
@@ -444,29 +439,7 @@ export async function saveQRCode(name: string, url: string, settings: QRSettings
         
         if (isDynamic) {
             uniqueId = generateUniqueId();
-            // Get the domain from environment or headers
-            let domain = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_DOMAIN;
-            
-            if (!domain) {
-                // Try to get from headers
-                try {
-                    const headersList = await headers();
-                    const host = headersList.get('host');
-                    if (host) {
-                        domain = host;
-                    }
-                } catch (e) {
-                    // Headers not available, use fallback
-                }
-            }
-            
-            // Remove protocol if present
-            if (domain) {
-                domain = domain.replace(/^https?:\/\//, '');
-            } else {
-                domain = 'localhost:3000';
-            }
-            
+            const domain = getDomain();
             const protocol = domain.includes('localhost') ? 'http' : 'https';
             finalUrl = `${protocol}://${domain}/dynamic/scan/${uniqueId}`;
         }
@@ -707,14 +680,7 @@ export async function getDynamicQRScanUrl(qrId: string): Promise<string | null> 
             return null;
         }
 
-        // Get the domain from environment or use default
-        let domain = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_DOMAIN;
-        if (domain) {
-            domain = domain.replace(/^https?:\/\//, '');
-        } else {
-            domain = 'localhost:3000';
-        }
-        
+        const domain = getDomain();
         const protocol = domain.includes('localhost') ? 'http' : 'https';
         return `${protocol}://${domain}/dynamic/scan/${data.unique_id}`;
     } catch (error) {

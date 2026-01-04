@@ -14,10 +14,10 @@ function LoginContent() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-black text-2xl">N</span>
+              <span className="text-white font-black text-2xl"></span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              NovaQR Studio
+              QRry Studio
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               {mode === 'sign-up' ? 'Create your account' : 'Welcome back'}

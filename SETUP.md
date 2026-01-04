@@ -1,4 +1,4 @@
-# Setup Instructions for NovaQR Studio
+# Setup Instructions for QRry Studio
 
 ## Environment Variables
 

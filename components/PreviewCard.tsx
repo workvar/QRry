@@ -190,7 +190,7 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ settings, showDownload = fals
                 const oldBg = settings.backgroundColor;
                 const wasTransparent = settings.isTransparent;
                 qrStylingRef.current.update({ backgroundOptions: { color: 'transparent', gradient: undefined } });
-                qrStylingRef.current.download({ name: 'NovaQR_Transparent', extension: ext });
+                qrStylingRef.current.download({ name: 'QRry_Transparent', extension: ext });
                 setTimeout(() => {
                     qrStylingRef.current.update({
                         backgroundOptions: {
@@ -204,7 +204,7 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ settings, showDownload = fals
                     });
                 }, 150);
             } else {
-                qrStylingRef.current.download({ name: 'NovaQR_Design', extension: ext });
+                qrStylingRef.current.download({ name: 'QRry_Design', extension: ext });
             }
         }
         setIsDropdownOpen(false);

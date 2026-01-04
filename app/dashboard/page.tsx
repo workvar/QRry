@@ -271,9 +271,9 @@ export default function DashboardPage() {
         <div className="max-w-[1200px] w-full mx-auto px-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-4 cursor-pointer">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-black">N</span>
+              <span className="text-white font-black"></span>
             </div>
-            <span className="text-sm font-bold tracking-tight">NovaQR Studio</span>
+            <span className="text-sm font-bold tracking-tight">QRry Studio</span>
           </Link>
 
           <div className="flex items-center gap-4">
@@ -655,7 +655,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-current border-opacity-5 text-center">
         <p className={`text-[11px] font-bold uppercase tracking-[0.2em] ${isDark ? 'opacity-30' : 'opacity-30'}`}>
-          © 2025 NovaQR Studio • Professional Edition
+          © {new Date().getFullYear()} Workvar Pvt. Ltd.
         </p>
       </footer>
 
