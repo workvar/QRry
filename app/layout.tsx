@@ -12,6 +12,7 @@ import {
   SignedOut,
   UserButton,
 } from "@clerk/nextjs";
+import { Analytics } from "@/components/Analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -62,6 +63,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Analytics />
         <ReduxProvider>
           <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
             {children}

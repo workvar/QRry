@@ -7,23 +7,15 @@ import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateSettings } from '@/store/qrSettingsSlice';
 import PreviewCard from '@/components/PreviewCard';
 import { FEATURE_FLAGS } from '@/config';
-import {
-    SunIcon,
-    MoonIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon,
-    ChevronDoubleRightIcon
-} from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { SignedIn, UserButton } from '@clerk/nextjs';
 import { saveQRCode, getDynamicQRDestination, getDynamicQRScanUrl } from '@/app/actions';
 import { useState } from 'react';
-
-const ALL_STEPS = [
-    { id: 'url', title: 'Content', description: 'Enter the destination link', path: '/create/content' },
-    { id: 'logo', title: 'Branding', description: 'Add your identity asset', flag: 'ENABLE_BRANDING_STEP', path: '/create/branding' },
-    { id: 'style', title: 'Design', description: 'Refine visual aesthetics', path: '/create/design' },
-];
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { ProgressBar } from '@/components/create/ProgressBar';
+import { StepNavigation } from '@/components/create/StepNavigation';
+import { CREATE_STEPS } from '@/data/createStepsData';
 
 export default function CreateLayout({ children }: { children: React.ReactNode }) {
     const settings = useAppSelector((state: any) => state.qrSettings);
@@ -111,7 +103,7 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
     };
 
     const activeSteps = useMemo(() => {
-        return ALL_STEPS.filter(step => !step.flag || (FEATURE_FLAGS as any)[step.flag]);
+        return CREATE_STEPS.filter(step => !step.flag || (FEATURE_FLAGS as any)[step.flag]);
     }, []);
 
     const currentStepIndex = activeSteps.findIndex(step => pathname.includes(step.path));
@@ -141,54 +133,13 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
 
     return (
         <div className={`min-h-screen flex flex-col transition-colors duration-500 ease-in-out ${isDark ? 'bg-black text-white' : 'bg-[#F5F5F7] text-[#1D1D1F]'}`}>
-            <header className={`h-16 border-b sticky top-0 z-50 flex items-center backdrop-blur-md transition-colors ${isDark ? 'border-white/10 bg-black/70' : 'border-black/5 bg-white/70'}`}>
-                <div className="max-w-[1200px] w-full mx-auto px-6 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-4 cursor-pointer">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                            <span className="text-white font-black">N</span>
-                        </div>
-                        <span className="text-sm font-bold tracking-tight">QRry Studio</span>
-                    </Link>
-
-                    <div className="flex items-center gap-4">
-                        {FEATURE_FLAGS.ENABLE_DARK_MODE_TOGGLE && (
-                            <button
-                                onClick={toggleTheme}
-                                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-                            >
-                                {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-                            </button>
-                        )}
-                        <SignedIn>
-                            <UserButton afterSignOutUrl="/" />
-                        </SignedIn>
-                    </div>
-                </div>
-            </header>
-
-            <div className="h-0.5 w-full bg-transparent overflow-hidden">
-                <div
-                    className="h-full bg-blue-600 transition-all duration-700 ease-out"
-                    style={{ width: `${progressPercent}%` }}
-                />
-            </div>
+            <DashboardHeader isDark={isDark} onToggleTheme={toggleTheme} showDashboardLink={true} showPricingLink={true} />
+            <ProgressBar progress={progressPercent} />
 
             <main className="flex-1 flex flex-col max-w-[1200px] w-full mx-auto px-6 py-12 lg:py-16">
                 <div className="flex flex-col lg:flex-row gap-16 lg:gap-24 items-start">
                     <div className="flex-1 w-full space-y-12">
-                        <nav className="flex items-center gap-4">
-                            {activeSteps.map((step, idx) => (
-                                <React.Fragment key={step.id}>
-                                    <div className={`flex flex-col gap-1 ${idx <= currentStepIndex ? 'opacity-100' : 'opacity-20'}`}>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-40">Step 0{idx + 1}</span>
-                                        <span className={`text-xs font-bold ${idx === currentStepIndex ? 'text-blue-600' : ''}`}>{step.title}</span>
-                                    </div>
-                                    {idx < activeSteps.length - 1 && (
-                                        <ChevronDoubleRightIcon className={`w-3 h-3 transition-colors ${idx < currentStepIndex ? 'text-blue-600 opacity-60' : 'opacity-20'}`} />
-                                    )}
-                                </React.Fragment>
-                            ))}
-                        </nav>
+                        <StepNavigation steps={activeSteps} currentStepIndex={currentStepIndex} />
 
                         <h1 className="text-4xl lg:text-5xl font-bold tracking-tight leading-tight">
                             {currentStep.description}

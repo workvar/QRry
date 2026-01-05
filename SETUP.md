@@ -16,6 +16,10 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 # Google Gemini (for AI suggestions)
 GEMINI_API_KEY=your_gemini_api_key
+
+# Analytics (Optional)
+NEXT_PUBLIC_GA_ID=your_google_analytics_id  # e.g., G-XXXXXXXXXX
+NEXT_PUBLIC_CLARITY_ID=your_microsoft_clarity_id  # e.g., abc123def4
 ```
 
 ## Database Setup
@@ -31,6 +35,26 @@ GEMINI_API_KEY=your_gemini_api_key
    - Copy the `service_role` key (NOT the anon key)
    - This key has admin privileges and should NEVER be exposed to the client
    - Add it to `.env.local` as `SUPABASE_SERVICE_ROLE_KEY`
+
+## Analytics Setup (Optional)
+
+### Google Analytics (GA4)
+
+1. Go to [Google Analytics](https://analytics.google.com/)
+2. Create a new property or use an existing one
+3. Go to Admin → Data Streams → Web
+4. Copy your Measurement ID (format: `G-XXXXXXXXXX`)
+5. Add it to `.env.local` as `NEXT_PUBLIC_GA_ID`
+
+### Microsoft Clarity
+
+1. Go to [Microsoft Clarity](https://clarity.microsoft.com/)
+2. Sign in with your Microsoft account
+3. Create a new project
+4. Copy your Project ID from the setup instructions
+5. Add it to `.env.local` as `NEXT_PUBLIC_CLARITY_ID`
+
+**Note:** Both analytics tools are optional. If you don't provide the IDs, the tracking scripts won't be loaded.
 
 ## Clerk Webhook Setup (Optional)
 
