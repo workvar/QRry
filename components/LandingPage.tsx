@@ -82,7 +82,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, isDark, toggleTheme 
 
             <AppFooter 
                 isDark={isDark}
-                links={landingFooterLinks}
             />
 
             <style jsx>{`

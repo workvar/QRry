@@ -193,39 +193,54 @@ export const StepBranding: React.FC<StepBrandingProps> = ({ settings, onUpdate, 
         try {
             const domain = settings.url.trim();
             const host = new URL(domain).hostname;
-            
-            // Try Clearbit logo API first
-            const logoUrl = `https://logo.clearbit.com/${host}?size=512`;
             const { fetchLogo } = await import('@/app/actions');
-            let base64 = await fetchLogo(logoUrl);
+            
+            // Try multiple logo sources in order
+            const logoSources = [
+                {
+                    url: `https://logo.clearbit.com/${host}?size=512`,
+                    name: 'Clearbit',
+                },
+                {
+                    url: `https://www.google.com/s2/favicons?domain=${host}&sz=256`,
+                    name: 'Google Favicon',
+                },
+                {
+                    url: `https://icons.duckduckgo.com/ip3/${host}.ico`,
+                    name: 'DuckDuckGo',
+                },
+                {
+                    url: `https://${host}/favicon.ico`,
+                    name: 'Site Favicon',
+                },
+                {
+                    url: `https://${host}/favicon.png`,
+                    name: 'Site Favicon PNG',
+                },
+            ];
 
-            if (base64) {
-                onUpdate({ logoUrl: base64 });
-                setIsFetchingLogo(false);
-                setToast({ 
-                    message: `Successfully fetched logo for ${host}`, 
-                    type: 'info' 
-                });
-                setTimeout(() => setToast(null), 4000);
-                return;
+            for (const source of logoSources) {
+                try {
+                    console.log(`[fetchBrandLogo] Trying ${source.name} for ${host}: ${source.url}`);
+                    const base64 = await fetchLogo(source.url);
+                    
+                    if (base64) {
+                        onUpdate({ logoUrl: base64 });
+                        setIsFetchingLogo(false);
+                        setToast({ 
+                            message: `Successfully fetched logo for ${host} (via ${source.name})`, 
+                            type: 'info' 
+                        });
+                        setTimeout(() => setToast(null), 4000);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn(`[fetchBrandLogo] ${source.name} failed:`, err);
+                    // Continue to next source
+                }
             }
 
-            // Fallback to Google favicon API
-            const fallbackUrl = `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
-            base64 = await fetchLogo(fallbackUrl);
-
-            if (base64) {
-                onUpdate({ logoUrl: base64 });
-                setIsFetchingLogo(false);
-                setToast({ 
-                    message: `Fetched favicon for ${host}`, 
-                    type: 'info' 
-                });
-                setTimeout(() => setToast(null), 4000);
-                return;
-            }
-
-            // Both methods failed
+            // All methods failed
             setIsFetchingLogo(false);
             setToast({ 
                 message: `Could not find a logo for ${host}. Please upload manually or try a different URL.`, 

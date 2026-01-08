@@ -73,15 +73,30 @@ async function ensureUserExists(userId: string): Promise<{ id: string; qr_count:
 
 export async function fetchLogo(url: string): Promise<string | null> {
     try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+        
+        if (!response.ok) {
+            console.warn(`[fetchLogo] Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        
+        // Check content type
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.startsWith('image/')) {
+            console.warn(`[fetchLogo] Not an image: ${url} (content-type: ${contentType})`);
+            return null;
+        }
         
         // Check content length before downloading
         const contentLength = response.headers.get('content-length');
         const maxSizeBytes = 1.5 * 1024 * 1024; // 1.5MB limit
         
         if (contentLength && parseInt(contentLength) > maxSizeBytes) {
-            console.warn(`Image too large: ${contentLength} bytes. Skipping.`);
+            console.warn(`[fetchLogo] Image too large: ${contentLength} bytes. Skipping ${url}`);
             return null;
         }
         
@@ -89,7 +104,13 @@ export async function fetchLogo(url: string): Promise<string | null> {
         
         // Double-check size after download (in case content-length was missing)
         if (arrayBuffer.byteLength > maxSizeBytes) {
-            console.warn(`Image too large after download: ${arrayBuffer.byteLength} bytes. Skipping.`);
+            console.warn(`[fetchLogo] Image too large after download: ${arrayBuffer.byteLength} bytes. Skipping ${url}`);
+            return null;
+        }
+        
+        // Check if we actually got image data
+        if (arrayBuffer.byteLength === 0) {
+            console.warn(`[fetchLogo] Empty response from ${url}`);
             return null;
         }
         
@@ -98,7 +119,7 @@ export async function fetchLogo(url: string): Promise<string | null> {
         const mimeType = response.headers.get('content-type') || 'image/png';
         return `data:${mimeType};base64,${base64}`;
     } catch (error) {
-        console.error('Error fetching logo:', error);
+        console.error(`[fetchLogo] Error fetching ${url}:`, error);
         return null;
     }
 }
