@@ -5,6 +5,7 @@ import "./globals.css";
 import { Suspense } from "react";
 import { ReduxProvider } from "./ReduxProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Analytics } from "@vercel/analytics/next"
 import {
   ClerkProvider,
   SignInButton,
@@ -13,7 +14,7 @@ import {
   SignedOut,
   UserButton,
 } from "@clerk/nextjs";
-import { Analytics } from "@/components/Analytics";
+import { Analytics as CustomAnalytics } from "@/components/Analytics";
 import { defaultMetadata } from "@/lib/seo/metadata";
 import { StructuredDataScript } from "@/components/seo/StructuredData";
 import { generateOrganizationSchema, generateWebApplicationSchema } from "@/lib/seo/structuredData";
@@ -74,6 +75,7 @@ export default function RootLayout({
         <StructuredDataScript data={[generateOrganizationSchema(), generateWebApplicationSchema()]} />
         <SpeedInsights />
         <Analytics />
+        <CustomAnalytics />
         <ReduxProvider>
           <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
             {children}
