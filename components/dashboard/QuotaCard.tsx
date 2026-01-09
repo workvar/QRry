@@ -1,6 +1,6 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 interface QuotaCardProps {
   title: string;
@@ -38,45 +38,48 @@ export function QuotaCard({
           ? 'border-white/10 bg-white/5'
           : 'border-black/5 bg-white'
     }`}>
-      <div className="mb-3">
-        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${
-          isDark ? 'text-white/40' : 'text-black/40'
-        }`}>
-          {title}
-        </p>
-        <p className="text-2xl font-bold mb-0.5">
-          {used} / {limit}
-        </p>
-        <p className={`text-xs ${isDark ? 'text-white/60' : 'text-black/60'}`}>
-          {remaining} {title.toLowerCase().includes('qr') ? 'QR code' : 'suggestion'}{remaining !== 1 ? 's' : ''} remaining
-        </p>
-      </div>
-      <div className="h-32">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              innerRadius={28}
-              outerRadius={42}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
-                borderRadius: '12px',
-                color: isDark ? '#ffffff' : '#000000',
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="flex items-center gap-4">
+        {/* Pie chart on the left */}
+        <div className="w-24 h-24 flex-shrink-0 relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={28}
+                outerRadius={40}
+                paddingAngle={0}
+                dataKey="value"
+                startAngle={90}
+                endAngle={-270}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Usage amount text in center */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-lg font-normal">
+              {used} / {limit}
+            </p>
+          </div>
+        </div>
+        {/* Title and remaining text on the right */}
+        <div className="flex-1">
+          <p className={`text-sm font-medium mb-1 ${
+            isDark ? 'text-white' : 'text-black'
+          }`}>
+            {title}
+          </p>
+          <p className={`text-xs ${
+            isDark ? 'text-white/60' : 'text-black/60'
+          }`}>
+            {remaining} {title.toLowerCase().includes('qr') ? 'QR code' : 'suggestion'}{remaining !== 1 ? 's' : ''} remaining
+          </p>
+        </div>
       </div>
     </div>
   );

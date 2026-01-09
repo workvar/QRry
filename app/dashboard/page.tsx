@@ -6,12 +6,13 @@ import { useUser } from '@clerk/nextjs';
 import { QRCode } from '@/lib/supabase/types';
 import { getUserData, getUserQRCodes, deleteQRCode, getDynamicQRQuota, renameQRCode } from '@/app/actions';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { updateSettings } from '@/store/qrSettingsSlice';
+import { updateSettings, resetSettings } from '@/store/qrSettingsSlice';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { QuotaCard } from '@/components/dashboard/QuotaCard';
 import { QRTable } from '@/components/dashboard/QRTable';
+import { DeletedQRTable } from '@/components/dashboard/DeletedQRTable';
 import { DeleteModal } from '@/components/dashboard/DeleteModal';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { AppFooter } from '@/components/common/AppFooter';
@@ -130,7 +131,7 @@ export default function DashboardPage() {
         name: qr.name,
       }));
     }
-    router.push('/create/content');
+    router.push(`/create/content?edit=${qr.id}`);
   };
 
   const handleStartRename = (qr: QRCode) => {
@@ -214,10 +215,49 @@ export default function DashboardPage() {
     return sorted;
   }, [qrCodes, sortField, sortDirection]);
 
+  // Separate active and deleted QR codes
+  const activeQRCodes = useMemo(() => {
+    return sortedQRCodes.filter(qr => !qr.deleted_at);
+  }, [sortedQRCodes]);
+
+  const deletedQRCodes = useMemo(() => {
+    return sortedQRCodes.filter(qr => !!qr.deleted_at);
+  }, [sortedQRCodes]);
+
   const canCreateNew = userData ? userData.qr_count < 4 : true;
   const remainingQRs = userData ? Math.max(0, 4 - userData.qr_count) : 4;
   const remainingAISuggestions = userData ? Math.max(0, 2 - userData.ai_suggestions_used) : 2;
   const remainingDynamicQRs = dynamicQRQuota ? Math.max(0, dynamicQRQuota.limit - dynamicQRQuota.count) : 1;
+
+  const quotaCards = useMemo(() => [
+    {
+      title: "QR Codes Usage",
+      used: userData?.qr_count || 0,
+      limit: 4,
+      remaining: remainingQRs,
+      usedColor: isDark ? '#3b82f6' : '#2563eb',
+      remainingColor: isDark ? '#1e293b' : '#e2e8f0',
+      isWarning: !canCreateNew,
+    },
+    {
+      title: "AI Suggestions Usage",
+      used: userData?.ai_suggestions_used || 0,
+      limit: 2,
+      remaining: remainingAISuggestions,
+      usedColor: isDark ? '#8b5cf6' : '#7c3aed',
+      remainingColor: isDark ? '#1e293b' : '#e2e8f0',
+      isWarning: false,
+    },
+    {
+      title: "Dynamic QR Usage",
+      used: dynamicQRQuota?.count || 0,
+      limit: dynamicQRQuota?.limit || 1,
+      remaining: remainingDynamicQRs,
+      usedColor: isDark ? '#10b981' : '#059669',
+      remainingColor: isDark ? '#1e293b' : '#e2e8f0',
+      isWarning: false,
+    },
+  ], [userData, dynamicQRQuota, remainingQRs, remainingAISuggestions, remainingDynamicQRs, canCreateNew, isDark]);
 
   if (!isLoaded || loading) {
     return (
@@ -237,8 +277,8 @@ export default function DashboardPage() {
         <div className="mb-12">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-3">
-                My QR Codes
+              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-1">
+                Dashboard
               </h1>
               <p className={`text-base ${isDark ? 'text-white/60' : 'text-[#1D1D1F]/60'}`}>
                 Manage and create your QR codes
@@ -246,6 +286,13 @@ export default function DashboardPage() {
             </div>
             <Link
               href="/create/content"
+              onClick={() => {
+                // Clear any editing state and reset to defaults when creating new
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('editingQR');
+                }
+                dispatch(resetSettings());
+              }}
               className={`px-6 py-3 rounded-full font-bold text-sm transition-all flex items-center gap-2 shadow-xl ${canCreateNew
                   ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
                   : 'bg-zinc-300 text-zinc-500 cursor-not-allowed opacity-50'
@@ -256,57 +303,52 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-            <QuotaCard
-              title="QR Codes Usage"
-              used={userData?.qr_count || 0}
-              limit={4}
-              remaining={remainingQRs}
-              usedColor={isDark ? '#3b82f6' : '#2563eb'}
-              remainingColor={isDark ? '#1e293b' : '#e2e8f0'}
-              isDark={isDark}
-              isWarning={!canCreateNew}
-            />
-            <QuotaCard
-              title="AI Suggestions Usage"
-              used={userData?.ai_suggestions_used || 0}
-              limit={2}
-              remaining={remainingAISuggestions}
-              usedColor={isDark ? '#8b5cf6' : '#7c3aed'}
-              remainingColor={isDark ? '#1e293b' : '#e2e8f0'}
-              isDark={isDark}
-            />
-            <QuotaCard
-              title="Dynamic QR Usage"
-              used={dynamicQRQuota?.count || 0}
-              limit={dynamicQRQuota?.limit || 1}
-              remaining={remainingDynamicQRs}
-              usedColor={isDark ? '#10b981' : '#059669'}
-              remainingColor={isDark ? '#1e293b' : '#e2e8f0'}
-              isDark={isDark}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+            {quotaCards.map((card, index) => (
+              <QuotaCard
+                key={index}
+                title={card.title}
+                used={card.used}
+                limit={card.limit}
+                remaining={card.remaining}
+                usedColor={card.usedColor}
+                remainingColor={card.remainingColor}
+                isDark={isDark}
+                isWarning={card.isWarning}
+              />
+            ))}
           </div>
         </div>
 
-        {qrCodes.length === 0 ? (
+        {activeQRCodes.length === 0 && deletedQRCodes.length === 0 ? (
           <EmptyState isDark={isDark} />
         ) : (
-          <QRTable
-            qrCodes={sortedQRCodes}
-            isDark={isDark}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            editingNameId={editingNameId}
-            editingName={editingName}
-            deletingId={deletingId}
-            onSort={handleSort}
-            onStartRename={handleStartRename}
-            onCancelRename={handleCancelRename}
-            onSaveRename={handleSaveRename}
-            onEdit={handleEdit}
-            onDeleteClick={handleDeleteClick}
-            onEditingNameChange={setEditingName}
-          />
+          <>
+            {activeQRCodes.length > 0 && (
+              <QRTable
+                qrCodes={activeQRCodes}
+                isDark={isDark}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                editingNameId={editingNameId}
+                editingName={editingName}
+                deletingId={deletingId}
+                onSort={handleSort}
+                onStartRename={handleStartRename}
+                onCancelRename={handleCancelRename}
+                onSaveRename={handleSaveRename}
+                onEdit={handleEdit}
+                onDeleteClick={handleDeleteClick}
+                onEditingNameChange={setEditingName}
+              />
+            )}
+            {deletedQRCodes.length > 0 && (
+              <DeletedQRTable
+                qrCodes={deletedQRCodes}
+                isDark={isDark}
+              />
+            )}
+          </>
         )}
       </main>
 

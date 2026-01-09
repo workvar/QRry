@@ -53,13 +53,6 @@ export const defaultMetadata: Metadata = {
         alt: `${siteName} - Professional QR Code Generator - Landing Page`,
         type: 'image/png',
       },
-      {
-        url: `${siteUrl}/Assets/logo-with-name.png`,
-        width: 1200,
-        height: 630,
-        alt: `${siteName} - Professional QR Code Generator`,
-        type: 'image/png',
-      },
     ],
   },
   twitter: {
@@ -108,11 +101,28 @@ export const homeMetadata: Metadata = {
     title: `${siteName} - Professional QR Code Generator | AI-Powered & Customizable`,
     description: 'Create professional QR codes with AI-powered branding, infinite customization options, and production-ready exports. Free QR code generator with advanced design tools.',
     url: siteUrl,
+    images: [
+      {
+        url: `${siteUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: `${siteName} - Professional QR Code Generator - Landing Page`,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     ...defaultMetadata.twitter,
     title: `${siteName} - Professional QR Code Generator | AI-Powered & Customizable`,
     description: 'Create professional QR codes with AI-powered branding, infinite customization options, and production-ready exports. Free QR code generator with advanced design tools.',
+    images: [
+      {
+        url: `${siteUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: `${siteName} - Professional QR Code Generator - Landing Page`,
+      },
+    ],
   },
 };
 
@@ -126,11 +136,28 @@ export const pricingMetadata: Metadata = {
     description: 'Transparent pricing for QR code generation. Start free with 4 QR codes and 2 AI suggestions. Upgrade with flexible add-ons for unlimited QR codes and features.',
     url: `${siteUrl}/pricing`,
     type: 'website',
+    images: [
+      {
+        url: `${siteUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: `${siteName} - Professional QR Code Generator - Landing Page`,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     ...defaultMetadata.twitter,
     title: 'Pricing Plans - Affordable QR Code Solutions | QRry Studio',
     description: 'Transparent pricing for QR code generation. Start free with 4 QR codes and 2 AI suggestions.',
+    images: [
+      {
+        url: `${siteUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: `${siteName} - Professional QR Code Generator - Landing Page`,
+      },
+    ],
   },
   alternates: {
     canonical: `${siteUrl}/pricing`,

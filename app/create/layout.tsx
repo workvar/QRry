@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useMemo, useEffect, Suspense } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { updateSettings } from '@/store/qrSettingsSlice';
+import { updateSettings, resetSettings } from '@/store/qrSettingsSlice';
 import PreviewCard from '@/components/PreviewCard';
 import { FEATURE_FLAGS } from '@/config';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -18,62 +18,79 @@ import { StepNavigation } from '@/components/create/StepNavigation';
 import { CREATE_STEPS } from '@/data/createStepsData';
 import { AppFooter } from '@/components/common/AppFooter';
 
-export default function CreateLayout({ children }: { children: React.ReactNode }) {
+function CreateLayoutContent({ children }: { children: React.ReactNode }) {
     const settings = useAppSelector((state: any) => state.qrSettings);
     const dispatch = useAppDispatch();
     const pathname = usePathname();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [isSaving, setIsSaving] = useState(false);
     const [editingQRId, setEditingQRId] = useState<string | null>(null);
     const [dynamicQRScanUrl, setDynamicQRScanUrl] = useState<string | null>(null);
 
     const isDark = settings.theme === 'dark';
     
+    // Get edit query parameter from URL
+    const editParam = searchParams.get('edit');
+    
     // Check if editing existing QR
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const editingQR = sessionStorage.getItem('editingQR');
-            if (editingQR) {
+            // Check both sessionStorage and URL query parameter
+            const qrId = editParam || (editingQR ? JSON.parse(editingQR).id : null);
+            
+            if (editingQR || editParam) {
                 try {
-                    const parsed = JSON.parse(editingQR);
-                    setEditingQRId(parsed.id);
-                    // Load settings if editing
-                    if (parsed.settings) {
-                        const loadedSettings = { ...parsed.settings };
+                    const parsed = editingQR ? JSON.parse(editingQR) : null;
+                    const id = editParam || parsed?.id;
+                    
+                    if (id) {
+                        setEditingQRId(id);
                         
-                        // If it's a dynamic QR, fetch both destination URL and scan URL
-                        if (loadedSettings.isDynamic) {
-                            Promise.all([
-                                getDynamicQRDestination(parsed.id),
-                                getDynamicQRScanUrl(parsed.id)
-                            ]).then(([destinationUrl, scanUrl]) => {
-                                if (destinationUrl) {
-                                    // Store scan URL separately for QR generation
-                                    if (scanUrl) {
-                                        setDynamicQRScanUrl(scanUrl);
+                        // Load settings if editing
+                        if (parsed?.settings) {
+                            const loadedSettings = { ...parsed.settings };
+                            
+                            // If it's a dynamic QR, fetch both destination URL and scan URL
+                            if (loadedSettings.isDynamic) {
+                                Promise.all([
+                                    getDynamicQRDestination(id),
+                                    getDynamicQRScanUrl(id)
+                                ]).then(([destinationUrl, scanUrl]) => {
+                                    if (destinationUrl) {
+                                        // Store scan URL separately for QR generation
+                                        if (scanUrl) {
+                                            setDynamicQRScanUrl(scanUrl);
+                                        }
+                                        // Show destination URL in input field
+                                        dispatch(updateSettings({
+                                            ...loadedSettings,
+                                            url: destinationUrl,
+                                        }));
+                                    } else {
+                                        dispatch(updateSettings(loadedSettings));
                                     }
-                                    // Show destination URL in input field
-                                    dispatch(updateSettings({
-                                        ...loadedSettings,
-                                        url: destinationUrl,
-                                    }));
-                                } else {
+                                }).catch((error) => {
+                                    console.error('Error loading dynamic QR data:', error);
                                     dispatch(updateSettings(loadedSettings));
-                                }
-                            }).catch((error) => {
-                                console.error('Error loading dynamic QR data:', error);
+                                });
+                            } else {
                                 dispatch(updateSettings(loadedSettings));
-                            });
-                        } else {
-                            dispatch(updateSettings(loadedSettings));
+                            }
                         }
                     }
                 } catch (e) {
                     console.error('Error parsing editing QR:', e);
                 }
+            } else {
+                // No editing session - reset to default settings for new creation
+                dispatch(resetSettings());
+                setEditingQRId(null);
+                setDynamicQRScanUrl(null);
             }
         }
-    }, [dispatch]);
+    }, [dispatch, editParam]);
     
     const handleUpdateSettings = (updates: Partial<typeof settings>) => {
         dispatch(updateSettings(updates));
@@ -121,14 +138,18 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
     const handleNext = () => {
         if (currentStepIndex < activeSteps.length - 1) {
             const nextPath = activeSteps[currentStepIndex + 1].path;
-            router.push(nextPath);
+            // Preserve edit query parameter if present
+            const url = editParam ? `${nextPath}?edit=${editParam}` : nextPath;
+            router.push(url);
         }
     };
 
     const handlePrev = () => {
         if (currentStepIndex > 0) {
             const prevPath = activeSteps[currentStepIndex - 1].path;
-            router.push(prevPath);
+            // Preserve edit query parameter if present
+            const url = editParam ? `${prevPath}?edit=${editParam}` : prevPath;
+            router.push(url);
         }
     };
 
@@ -218,5 +239,13 @@ export default function CreateLayout({ children }: { children: React.ReactNode }
 
             <AppFooter isDark={isDark} />
         </div>
+    );
+}
+
+export default function CreateLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <CreateLayoutContent>{children}</CreateLayoutContent>
+        </Suspense>
     );
 }

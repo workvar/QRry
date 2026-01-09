@@ -749,6 +749,23 @@ export async function deleteQRCode(qrId: string): Promise<{ success: boolean; er
             return { success: false, error: 'Failed to delete QR code' };
         }
 
+        // Also soft delete the corresponding dynamic_qr_codes record if it exists
+        // This allows users to create a new dynamic QR when the old one is deleted
+        const { error: dynamicDeleteError } = await supabase
+            .from('dynamic_qr_codes')
+            .update({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .eq('qr_code_id', qrId)
+            .eq('user_id', userData.id)
+            .is('deleted_at', null); // Only update if not already deleted
+
+        if (dynamicDeleteError && !dynamicDeleteError.message?.includes('does not exist')) {
+            // Log error but don't fail the deletion - dynamic QR might not exist
+            console.error('Error deleting dynamic QR code:', dynamicDeleteError);
+        }
+
         // Don't update QR count - soft delete preserves the count
 
         return { success: true };
